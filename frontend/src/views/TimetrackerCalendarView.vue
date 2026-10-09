@@ -5,26 +5,75 @@
       <div>
         <div class="title">📅 Acompanhamento Diário & Calendário Semanal</div>
         <div class="sub">
-          Acompanhamento visual de esforço diário organizado por semana.
-          <span v-if="authStore.isGestor">Você visualiza as entregas de toda a sua equipe direta.</span>
-          <span v-else-if="authStore.isAdmin">Você possui visão global de todos os colaboradores.</span>
-          <span v-else>Visualização do seu histórico pessoal de produção.</span>
+          Acompanhamento visual de esforço e horas registradas por semana.
+          <span v-if="selectedUserObj">Filtrado especificamente para: <strong>{{ selectedUserObj.name }}</strong>.</span>
+          <span v-else>Exibindo horas de toda a equipe. Selecione um colaborador abaixo para isolar sua carga horária.</span>
         </div>
-      </div>
-
-      <!-- Filtro de Colaborador (Para Gestor e Admin) -->
-      <div v-if="authStore.isAdmin || authStore.isGestor" class="filter-colaborador">
-        <label>Filtrar Colaborador da Equipe</label>
-        <select v-model="selectedUserId" class="form-control" @change="loadCalendar">
-          <option :value="null">👥 Toda a Equipe / Subordinados</option>
-          <option v-for="u in allowedUsers" :key="u.id" :value="u.id">
-            👤 {{ u.name }}
-          </option>
-        </select>
       </div>
     </div>
 
-    <!-- Barra de Navegação da Semana & Controles -->
+    <!-- Barra de Filtros Dedicada (Colaborador e Projeto) -->
+    <div class="card filter-bar">
+      <div class="filter-controls-group">
+        <!-- Filtro Principal: Colaborador -->
+        <div class="filter-field">
+          <label class="filter-label">👤 Filtrar por Colaborador:</label>
+          <div class="filter-input-wrapper">
+            <select v-model="selectedUserId" class="form-control filter-select" @change="onUserFilterChange">
+              <option :value="null">👥 Todos os Colaboradores (Visão Geral da Equipe)</option>
+              <option v-for="u in usersList" :key="u.id" :value="u.id">
+                👤 {{ u.name }} ({{ formatRole(u.role) }})
+              </option>
+            </select>
+            <button
+              v-if="selectedUserId"
+              class="btn secondary clear-btn"
+              @click="clearUserFilter"
+              title="Limpar filtro de colaborador"
+            >
+              ✖ Limpar
+            </button>
+          </div>
+        </div>
+
+        <!-- Filtro Adicional: Projeto -->
+        <div class="filter-field">
+          <label class="filter-label">📁 Filtrar por Projeto:</label>
+          <div class="filter-input-wrapper">
+            <select v-model="selectedProjectId" class="form-control filter-select">
+              <option :value="null">📁 Todos os Projetos</option>
+              <option v-for="p in projectsList" :key="p.id" :value="p.id">
+                📁 {{ p.name }}
+              </option>
+            </select>
+            <button
+              v-if="selectedProjectId"
+              class="btn secondary clear-btn"
+              @click="selectedProjectId = null"
+              title="Limpar filtro de projeto"
+            >
+              ✖ Limpar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Tag de Destaque quando o filtro está ativo -->
+      <div v-if="selectedUserObj || selectedProjectObj" class="active-filter-tags">
+        <div v-if="selectedUserObj" class="filter-tag user-tag">
+          <span class="tag-dot">●</span>
+          <span>Colaborador: <strong>{{ selectedUserObj.name }}</strong></span>
+          <button class="tag-close" @click="clearUserFilter" title="Remover filtro">×</button>
+        </div>
+        <div v-if="selectedProjectObj" class="filter-tag project-tag">
+          <span class="tag-dot">●</span>
+          <span>Projeto: <strong>{{ selectedProjectObj.name }}</strong></span>
+          <button class="tag-close" @click="selectedProjectId = null" title="Remover filtro">×</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barra de Navegação da Semana & Controles de Período -->
     <div class="nav-bar card">
       <div class="nav-actions">
         <button class="btn secondary nav-btn" @click="previousWeek" title="Semana Anterior">
@@ -67,28 +116,28 @@
     </div>
 
     <!-- Indicadores da Semana Selecionada -->
-    <div class="kpis" style="margin-top: 10px;">
+    <div class="kpis">
       <div class="kpi primary">
         <div class="v">{{ weekTotalHours }}h</div>
-        <div class="l">Horas na Semana</div>
+        <div class="l">{{ selectedUserObj ? `Horas de ${selectedUserFirstName}` : 'Horas na Semana' }}</div>
         <div class="n">{{ weekTotalMinutes }} minutos apontados</div>
       </div>
       <div class="kpi">
         <div class="v">{{ weekEntriesCount }}</div>
         <div class="l">Sessões / Apontamentos</div>
-        <div class="n">Tarefas registradas</div>
+        <div class="n">{{ selectedUserObj ? `Tarefas de ${selectedUserFirstName}` : 'Total de tarefas da equipe' }}</div>
       </div>
       <div class="kpi">
         <div class="v" style="color:var(--purple)">{{ weekDaysWorkedCount }} / 7</div>
         <div class="l">Dias com Produção</div>
-        <div class="n">Dias com atividade nesta semana</div>
+        <div class="n">Dias trabalhados nesta semana</div>
       </div>
       <div class="kpi">
         <div class="v" style="color:var(--green)">
           {{ weekAverageDailyHours }}h
         </div>
         <div class="l">Média Diária</div>
-        <div class="n">Por dia trabalhado</div>
+        <div class="n">Por dia com atividade</div>
       </div>
     </div>
 
@@ -169,8 +218,8 @@
                 {{ truncateText(entry.description, 75) }}
               </div>
 
-              <!-- Colaborador (visível se tiver múltiplos usuários) -->
-              <div class="card-user">
+              <!-- Colaborador (destaque visual) -->
+              <div class="card-user" :class="{ 'highlight-user': !selectedUserId }">
                 👤 {{ entry.user_name }}
               </div>
             </div>
@@ -203,7 +252,7 @@
           </div>
           <div class="detail-row">
             <span class="detail-label">Colaborador:</span>
-            <span>👤 {{ selectedEntry.user_name }}</span>
+            <strong style="color:#2563EB;">👤 {{ selectedEntry.user_name }}</strong>
           </div>
           <div class="detail-row">
             <span class="detail-label">Data & Horário:</span>
@@ -240,8 +289,12 @@ import api from '@/services/api'
 const authStore = useAuthStore()
 const entries = ref([])
 const loading = ref(false)
+
+// Filtros
 const selectedUserId = ref(null)
-const allowedUsers = ref([])
+const selectedProjectId = ref(null)
+const usersList = ref([])
+const projectsList = ref([])
 
 // Controle de Navegação da Semana
 const anchorDate = ref(new Date())
@@ -269,23 +322,27 @@ function getCardTheme(entry) {
 
 onMounted(async () => {
   await Promise.all([
-    loadAllowedUsers(),
+    loadUsers(),
+    loadProjects(),
     loadCalendar()
   ])
 })
 
-async function loadAllowedUsers() {
-  if (authStore.isAdmin || authStore.isGestor) {
-    try {
-      const res = await api.get('/users/')
-      if (authStore.isAdmin) {
-        allowedUsers.value = res.data
-      } else if (authStore.isGestor) {
-        allowedUsers.value = res.data.filter(u => u.manager_id === authStore.user?.id || u.id === authStore.user?.id)
-      }
-    } catch (err) {
-      console.error('Erro ao carregar lista de usuários:', err)
-    }
+async function loadUsers() {
+  try {
+    const res = await api.get('/users/')
+    usersList.value = res.data
+  } catch (err) {
+    console.error('Erro ao carregar lista de usuários:', err)
+  }
+}
+
+async function loadProjects() {
+  try {
+    const res = await api.get('/projects/')
+    projectsList.value = res.data
+  } catch (err) {
+    console.error('Erro ao carregar lista de projetos:', err)
   }
 }
 
@@ -304,6 +361,45 @@ async function loadCalendar() {
     loading.value = false
   }
 }
+
+function onUserFilterChange() {
+  loadCalendar()
+}
+
+function clearUserFilter() {
+  selectedUserId.value = null
+  loadCalendar()
+}
+
+const selectedUserObj = computed(() => {
+  if (!selectedUserId.value) return null
+  return usersList.value.find(u => u.id === selectedUserId.value) || null
+})
+
+const selectedUserFirstName = computed(() => {
+  if (!selectedUserObj.value) return ''
+  return selectedUserObj.value.name.split(' ')[0]
+})
+
+const selectedProjectObj = computed(() => {
+  if (!selectedProjectId.value) return null
+  return projectsList.value.find(p => p.id === selectedProjectId.value) || null
+})
+
+function formatRole(role) {
+  if (!role) return ''
+  const map = { admin: 'Admin', gestor: 'Gestor', analista: 'Analista' }
+  return map[role] || role
+}
+
+// Filtra as entradas ativas (cliente-side para reatividade instantânea)
+const filteredEntries = computed(() => {
+  return entries.value.filter(e => {
+    if (selectedUserId.value && e.user_id !== selectedUserId.value) return false
+    if (selectedProjectId.value && e.project_id !== selectedProjectId.value) return false
+    return true
+  })
+})
 
 // Retorna a chave YYYY-MM-DD em horário local seguro
 function getEntryLocalDateKey(dateStr) {
@@ -334,7 +430,6 @@ function goToCurrentWeek() {
 }
 
 const isCurrentWeekSelected = computed(() => {
-  const today = new Date()
   const currentDays = weekColumns.value
   return currentDays.some(d => d.isToday)
 })
@@ -389,7 +484,7 @@ const weekColumns = computed(() => {
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
 
     // Filtra atividades deste dia
-    const dayEntries = entries.value.filter(e => {
+    const dayEntries = filteredEntries.value.filter(e => {
       return getEntryLocalDateKey(e.date_recorded) === dateKey
     })
 
@@ -510,16 +605,116 @@ function openDetailModal(entry) {
   flex-wrap: wrap;
 }
 
-.filter-colaborador {
-  min-width: 260px;
+/* Barra de Filtros Dedicada */
+.filter-bar {
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
 }
 
-.filter-colaborador label {
-  font-size: 0.85rem;
+.filter-controls-group {
+  display: flex;
+  gap: 18px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 280px;
+  flex: 1;
+}
+
+.filter-label {
+  font-size: 0.84rem;
   font-weight: 700;
   color: var(--muted);
-  display: block;
-  margin-bottom: 4px;
+}
+
+.filter-input-wrapper {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.filter-select {
+  font-size: 0.9rem;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid #DCD6E5;
+  background-color: #FAF8FD;
+  color: var(--text);
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+}
+
+.filter-select:focus {
+  border-color: var(--purple2);
+  outline: none;
+  background-color: #fff;
+}
+
+.clear-btn {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+/* Tags de Filtro Ativo */
+.active-filter-tags {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  padding-top: 6px;
+  border-top: 1px solid #F0ECF5;
+}
+
+.filter-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  padding: 4px 10px;
+  border-radius: 14px;
+}
+
+.filter-tag.user-tag {
+  background: #EFF6FF;
+  color: #1E40AF;
+  border: 1px solid #BFDBFE;
+}
+
+.filter-tag.project-tag {
+  background: #FAF5FF;
+  color: #6B21A8;
+  border: 1px solid #E9D5FF;
+}
+
+.tag-dot {
+  font-size: 0.75rem;
+}
+
+.tag-close {
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+
+.tag-close:hover {
+  opacity: 1;
 }
 
 /* Barra de Navegação */
@@ -793,6 +988,11 @@ function openDetailModal(entry) {
   font-weight: 500;
   text-align: right;
   margin-top: 2px;
+}
+
+.card-user.highlight-user {
+  color: #2563EB;
+  font-weight: 600;
 }
 
 /* Estado de Dia Sem Atividades */

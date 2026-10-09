@@ -94,26 +94,11 @@ class TimeEntryService:
         }
 
     def get_calendar_entries(self, current_user: User, target_user_id: Optional[int] = None):
-        """Retorna histórico diário respeitando a hierarquia de gestão."""
+        """Retorna histórico diário para o calendário de acompanhamento."""
         query = self.db.query(TimeEntry).join(User, TimeEntry.user_id == User.id)
         
-        if current_user.role == RoleEnum.admin:
-            if target_user_id:
-                query = query.filter(TimeEntry.user_id == target_user_id)
-        elif current_user.role == RoleEnum.gestor:
-            subordinate_ids = [u.id for u in self.db.query(User).filter(User.manager_id == current_user.id).all()]
-            allowed_ids = subordinate_ids + [current_user.id]
-            if target_user_id:
-                if target_user_id not in allowed_ids:
-                    raise HTTPException(
-                        status_code=403, 
-                        detail="Você só pode visualizar apontamentos seus ou de seus subordinados diretos."
-                    )
-                query = query.filter(TimeEntry.user_id == target_user_id)
-            else:
-                query = query.filter(TimeEntry.user_id.in_(allowed_ids))
-        else:  # Analista
-            query = query.filter(TimeEntry.user_id == current_user.id)
+        if target_user_id:
+            query = query.filter(TimeEntry.user_id == target_user_id)
             
         entries = query.order_by(TimeEntry.date_recorded.desc()).all()
         
