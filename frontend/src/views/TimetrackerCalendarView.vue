@@ -6,69 +6,129 @@
         <div class="title">📅 Acompanhamento Diário & Calendário Semanal</div>
         <div class="sub">
           Acompanhamento visual de esforço e horas registradas por semana.
-          <span v-if="selectedUserObj">Filtrado especificamente para: <strong>{{ selectedUserObj.name }}</strong>.</span>
-          <span v-else>Exibindo horas de toda a equipe. Selecione um colaborador abaixo para isolar sua carga horária.</span>
+          <span v-if="selectedUserIds.length > 0">Filtrado para {{ selectedUserIds.length }} colaborador(es) específico(s).</span>
+          <span v-else>Exibindo horas de toda a equipe. Utilize o filtro multiseleção abaixo para isolar colaboradores.</span>
         </div>
       </div>
     </div>
 
-    <!-- Barra de Filtros Dedicada (Colaborador e Projeto) -->
-    <div class="card filter-bar">
-      <div class="filter-controls-group">
-        <!-- Filtro Principal: Colaborador -->
-        <div class="filter-field">
-          <label class="filter-label">👤 Filtrar por Colaborador:</label>
-          <div class="filter-input-wrapper">
-            <select v-model="selectedUserId" class="form-control filter-select" @change="onUserFilterChange">
-              <option :value="null">👥 Todos os Colaboradores (Visão Geral da Equipe)</option>
-              <option v-for="u in usersList" :key="u.id" :value="u.id">
-                👤 {{ u.name }} ({{ formatRole(u.role) }})
-              </option>
-            </select>
-            <button
-              v-if="selectedUserId"
-              class="btn secondary clear-btn"
-              @click="clearUserFilter"
-              title="Limpar filtro de colaborador"
-            >
-              ✖ Limpar
-            </button>
+    <!-- Painel de Filtros com Modelo Multiseleção (Busca, Marcar Todos, Limpar) -->
+    <div class="card filters-panel" ref="filterWrapperRef">
+      <div class="filters-header-row">
+        <div class="filters-title">
+          🔍 Filtros de Exibição do Calendário
+        </div>
+        <div v-if="activeFiltersCount > 0" class="filters-reset-group">
+          <span class="badge bpurple" style="font-size:0.75rem; font-weight:700;">
+            {{ activeFiltersCount }} filtro(s) ativo(s)
+          </span>
+          <button class="btn secondary small-btn" @click="resetAllFilters" title="Limpar todos os filtros">
+            Resetar Filtros
+          </button>
+        </div>
+      </div>
+
+      <div class="filters-grid">
+        <!-- 1. Dropdown Multiseleção: Colaboradores -->
+        <div class="ms-container" :class="{ open: openDropdown === 'colaboradores' }">
+          <label>👤 Colaboradores</label>
+          <div class="ms-trigger" @click.stop="toggleDropdown('colaboradores')">
+            <span class="ms-text" :title="getColaboradorTriggerText()">
+              {{ getColaboradorTriggerText() }}
+              <span v-if="selectedUserIds.length > 1" class="ms-count-badge">
+                {{ selectedUserIds.length }}
+              </span>
+            </span>
+            <span class="ms-arrow">▼</span>
+          </div>
+
+          <div class="ms-dropdown" @click.stop>
+            <input
+              v-model="searchQueries.colaboradores"
+              type="text"
+              class="ms-search"
+              placeholder="Buscar colaborador..."
+            />
+            <div class="ms-actions">
+              <span class="ms-action-btn" @click="selectAllUsers">Marcar Todos</span>
+              <span class="ms-action-btn" @click="clearAllUsers">Limpar</span>
+            </div>
+            <div class="ms-list">
+              <div v-if="filteredColaboradorOptions.length === 0" class="ms-empty">
+                Nenhum colaborador encontrado
+              </div>
+              <label
+                v-for="u in filteredColaboradorOptions"
+                :key="u.id"
+                class="ms-item"
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedUserIds.includes(u.id)"
+                  @change="toggleUser(u.id)"
+                />
+                <span>{{ u.name }} <small style="color:var(--muted)">({{ formatRole(u.role) }})</small></span>
+              </label>
+            </div>
           </div>
         </div>
 
-        <!-- Filtro Adicional: Projeto -->
-        <div class="filter-field">
-          <label class="filter-label">📁 Filtrar por Projeto:</label>
-          <div class="filter-input-wrapper">
-            <select v-model="selectedProjectId" class="form-control filter-select">
-              <option :value="null">📁 Todos os Projetos</option>
-              <option v-for="p in projectsList" :key="p.id" :value="p.id">
-                📁 {{ p.name }}
-              </option>
-            </select>
-            <button
-              v-if="selectedProjectId"
-              class="btn secondary clear-btn"
-              @click="selectedProjectId = null"
-              title="Limpar filtro de projeto"
-            >
-              ✖ Limpar
-            </button>
+        <!-- 2. Dropdown Multiseleção: Projetos -->
+        <div class="ms-container" :class="{ open: openDropdown === 'projetos' }">
+          <label>📁 Projetos</label>
+          <div class="ms-trigger" @click.stop="toggleDropdown('projetos')">
+            <span class="ms-text" :title="getProjetoTriggerText()">
+              {{ getProjetoTriggerText() }}
+              <span v-if="selectedProjectIds.length > 1" class="ms-count-badge">
+                {{ selectedProjectIds.length }}
+              </span>
+            </span>
+            <span class="ms-arrow">▼</span>
+          </div>
+
+          <div class="ms-dropdown" @click.stop>
+            <input
+              v-model="searchQueries.projetos"
+              type="text"
+              class="ms-search"
+              placeholder="Buscar projeto..."
+            />
+            <div class="ms-actions">
+              <span class="ms-action-btn" @click="selectAllProjects">Marcar Todos</span>
+              <span class="ms-action-btn" @click="clearAllProjects">Limpar</span>
+            </div>
+            <div class="ms-list">
+              <div v-if="filteredProjetoOptions.length === 0" class="ms-empty">
+                Nenhum projeto encontrado
+              </div>
+              <label
+                v-for="p in filteredProjetoOptions"
+                :key="p.id"
+                class="ms-item"
+              >
+                <input
+                  type="checkbox"
+                  :checked="selectedProjectIds.includes(p.id)"
+                  @change="toggleProject(p.id)"
+                />
+                <span>{{ p.name }}</span>
+              </label>
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Tag de Destaque quando o filtro está ativo -->
-      <div v-if="selectedUserObj || selectedProjectObj" class="active-filter-tags">
-        <div v-if="selectedUserObj" class="filter-tag user-tag">
+      <!-- Tags de Filtros Ativos com Remoção Rápida -->
+      <div v-if="activeFiltersCount > 0" class="active-filter-tags">
+        <div v-for="id in selectedUserIds" :key="'user-' + id" class="filter-tag user-tag">
           <span class="tag-dot">●</span>
-          <span>Colaborador: <strong>{{ selectedUserObj.name }}</strong></span>
-          <button class="tag-close" @click="clearUserFilter" title="Remover filtro">×</button>
+          <span>👤 {{ getUserName(id) }}</span>
+          <button class="tag-close" @click="toggleUser(id)" title="Remover filtro">×</button>
         </div>
-        <div v-if="selectedProjectObj" class="filter-tag project-tag">
+        <div v-for="id in selectedProjectIds" :key="'proj-' + id" class="filter-tag project-tag">
           <span class="tag-dot">●</span>
-          <span>Projeto: <strong>{{ selectedProjectObj.name }}</strong></span>
-          <button class="tag-close" @click="selectedProjectId = null" title="Remover filtro">×</button>
+          <span>📁 {{ getProjectName(id) }}</span>
+          <button class="tag-close" @click="toggleProject(id)" title="Remover filtro">×</button>
         </div>
       </div>
     </div>
@@ -119,13 +179,13 @@
     <div class="kpis">
       <div class="kpi primary">
         <div class="v">{{ weekTotalHours }}h</div>
-        <div class="l">{{ selectedUserObj ? `Horas de ${selectedUserFirstName}` : 'Horas na Semana' }}</div>
+        <div class="l">{{ kpiHoursLabel }}</div>
         <div class="n">{{ weekTotalMinutes }} minutos apontados</div>
       </div>
       <div class="kpi">
         <div class="v">{{ weekEntriesCount }}</div>
         <div class="l">Sessões / Apontamentos</div>
-        <div class="n">{{ selectedUserObj ? `Tarefas de ${selectedUserFirstName}` : 'Total de tarefas da equipe' }}</div>
+        <div class="n">Tarefas registradas no recorte</div>
       </div>
       <div class="kpi">
         <div class="v" style="color:var(--purple)">{{ weekDaysWorkedCount }} / 7</div>
@@ -218,8 +278,8 @@
                 {{ truncateText(entry.description, 75) }}
               </div>
 
-              <!-- Colaborador (destaque visual) -->
-              <div class="card-user" :class="{ 'highlight-user': !selectedUserId }">
+              <!-- Colaborador -->
+              <div class="card-user" :class="{ 'highlight-user': selectedUserIds.length === 0 }">
                 👤 {{ entry.user_name }}
               </div>
             </div>
@@ -282,23 +342,30 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import api from '@/services/api'
 
 const authStore = useAuthStore()
 const entries = ref([])
 const loading = ref(false)
+const filterWrapperRef = ref(null)
 
-// Filtros
-const selectedUserId = ref(null)
-const selectedProjectId = ref(null)
+// Estados dos Dropdowns Multiseleção
+const openDropdown = ref(null)
+const selectedUserIds = ref([])
+const selectedProjectIds = ref([])
 const usersList = ref([])
 const projectsList = ref([])
 
+const searchQueries = reactive({
+  colaboradores: '',
+  projetos: ''
+})
+
 // Controle de Navegação da Semana
 const anchorDate = ref(new Date())
-const startOnMonday = ref(false) // false = Dom ➔ Sáb (como no anexo), true = Seg ➔ Dom
+const startOnMonday = ref(false) // false = Dom ➔ Sáb, true = Seg ➔ Dom
 
 // Modal de Detalhes
 const showModal = ref(false)
@@ -321,12 +388,27 @@ function getCardTheme(entry) {
 }
 
 onMounted(async () => {
+  window.addEventListener('click', handleClickOutside)
   await Promise.all([
     loadUsers(),
     loadProjects(),
     loadCalendar()
   ])
 })
+
+onBeforeUnmount(() => {
+  window.removeEventListener('click', handleClickOutside)
+})
+
+function handleClickOutside(e) {
+  if (filterWrapperRef.value && !filterWrapperRef.value.contains(e.target)) {
+    openDropdown.value = null
+  }
+}
+
+function toggleDropdown(name) {
+  openDropdown.value = openDropdown.value === name ? null : name
+}
 
 async function loadUsers() {
   try {
@@ -349,11 +431,7 @@ async function loadProjects() {
 async function loadCalendar() {
   loading.value = true
   try {
-    const params = {}
-    if (selectedUserId.value) {
-      params.user_id = selectedUserId.value
-    }
-    const res = await api.get('/timetracker/calendar', { params })
+    const res = await api.get('/timetracker/calendar')
     entries.value = res.data
   } catch (err) {
     console.error('Erro ao carregar calendário:', err)
@@ -362,41 +440,139 @@ async function loadCalendar() {
   }
 }
 
-function onUserFilterChange() {
-  loadCalendar()
-}
-
-function clearUserFilter() {
-  selectedUserId.value = null
-  loadCalendar()
-}
-
-const selectedUserObj = computed(() => {
-  if (!selectedUserId.value) return null
-  return usersList.value.find(u => u.id === selectedUserId.value) || null
-})
-
-const selectedUserFirstName = computed(() => {
-  if (!selectedUserObj.value) return ''
-  return selectedUserObj.value.name.split(' ')[0]
-})
-
-const selectedProjectObj = computed(() => {
-  if (!selectedProjectId.value) return null
-  return projectsList.value.find(p => p.id === selectedProjectId.value) || null
-})
-
 function formatRole(role) {
   if (!role) return ''
   const map = { admin: 'Admin', gestor: 'Gestor', analista: 'Analista' }
   return map[role] || role
 }
 
-// Filtra as entradas ativas (cliente-side para reatividade instantânea)
+// Opções de Colaboradores
+const colaboradorOptions = computed(() => {
+  const map = new Map()
+  usersList.value.forEach(u => {
+    map.set(u.id, { id: u.id, name: u.name, role: u.role })
+  })
+  entries.value.forEach(e => {
+    if (e.user_id && !map.has(e.user_id)) {
+      map.set(e.user_id, { id: e.user_id, name: e.user_name || 'Usuário Desconhecido', role: 'analista' })
+    }
+  })
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const filteredColaboradorOptions = computed(() => {
+  const q = searchQueries.colaboradores.toLowerCase().trim()
+  if (!q) return colaboradorOptions.value
+  return colaboradorOptions.value.filter(u => u.name.toLowerCase().includes(q))
+})
+
+function getColaboradorTriggerText() {
+  if (selectedUserIds.value.length === 0) return 'Todos os Colaboradores'
+  if (selectedUserIds.value.length === 1) {
+    const u = colaboradorOptions.value.find(item => item.id === selectedUserIds.value[0])
+    return u ? u.name : '1 selecionado'
+  }
+  return `${selectedUserIds.value.length} selecionados`
+}
+
+function toggleUser(id) {
+  const list = [...selectedUserIds.value]
+  const idx = list.indexOf(id)
+  if (idx !== -1) {
+    list.splice(idx, 1)
+  } else {
+    list.push(id)
+  }
+  selectedUserIds.value = list
+}
+
+function selectAllUsers() {
+  selectedUserIds.value = colaboradorOptions.value.map(u => u.id)
+}
+
+function clearAllUsers() {
+  selectedUserIds.value = []
+}
+
+function getUserName(id) {
+  const u = colaboradorOptions.value.find(item => item.id === id)
+  return u ? u.name : `Usuário #${id}`
+}
+
+// Opções de Projetos
+const projetoOptions = computed(() => {
+  const map = new Map()
+  projectsList.value.forEach(p => {
+    map.set(p.id, { id: p.id, name: p.name })
+  })
+  entries.value.forEach(e => {
+    if (e.project_id && !map.has(e.project_id)) {
+      map.set(e.project_id, { id: e.project_id, name: e.project_name || 'Sem Projeto' })
+    }
+  })
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name))
+})
+
+const filteredProjetoOptions = computed(() => {
+  const q = searchQueries.projetos.toLowerCase().trim()
+  if (!q) return projetoOptions.value
+  return projetoOptions.value.filter(p => p.name.toLowerCase().includes(q))
+})
+
+function getProjetoTriggerText() {
+  if (selectedProjectIds.value.length === 0) return 'Todos os Projetos'
+  if (selectedProjectIds.value.length === 1) {
+    const p = projetoOptions.value.find(item => item.id === selectedProjectIds.value[0])
+    return p ? p.name : '1 selecionado'
+  }
+  return `${selectedProjectIds.value.length} selecionados`
+}
+
+function toggleProject(id) {
+  const list = [...selectedProjectIds.value]
+  const idx = list.indexOf(id)
+  if (idx !== -1) {
+    list.splice(idx, 1)
+  } else {
+    list.push(id)
+  }
+  selectedProjectIds.value = list
+}
+
+function selectAllProjects() {
+  selectedProjectIds.value = projetoOptions.value.map(p => p.id)
+}
+
+function clearAllProjects() {
+  selectedProjectIds.value = []
+}
+
+function getProjectName(id) {
+  const p = projetoOptions.value.find(item => item.id === id)
+  return p ? p.name : `Projeto #${id}`
+}
+
+const activeFiltersCount = computed(() => {
+  let count = 0
+  if (selectedUserIds.value.length > 0) count++
+  if (selectedProjectIds.value.length > 0) count++
+  return count
+})
+
+function resetAllFilters() {
+  selectedUserIds.value = []
+  selectedProjectIds.value = []
+}
+
+// Filtra as entradas ativas com suporte a multiseleção instantânea
 const filteredEntries = computed(() => {
   return entries.value.filter(e => {
-    if (selectedUserId.value && e.user_id !== selectedUserId.value) return false
-    if (selectedProjectId.value && e.project_id !== selectedProjectId.value) return false
+    if (selectedUserIds.value.length > 0 && !selectedUserIds.value.includes(e.user_id)) {
+      return false
+    }
+    if (selectedProjectIds.value.length > 0 && !selectedProjectIds.value.includes(e.project_id)) {
+      return false
+    }
     return true
   })
 })
@@ -483,7 +659,7 @@ const weekColumns = computed(() => {
     const dayOfWeek = cur.getDay()
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6
 
-    // Filtra atividades deste dia
+    // Filtra atividades deste dia respeitando os filtros selecionados
     const dayEntries = filteredEntries.value.filter(e => {
       return getEntryLocalDateKey(e.date_recorded) === dateKey
     })
@@ -557,6 +733,17 @@ const weekAverageDailyHours = computed(() => {
   return (weekTotalMinutes.value / weekDaysWorkedCount.value / 60).toFixed(1)
 })
 
+const kpiHoursLabel = computed(() => {
+  if (selectedUserIds.value.length === 1) {
+    const u = colaboradorOptions.value.find(item => item.id === selectedUserIds.value[0])
+    return u ? `Horas de ${u.name.split(' ')[0]}` : 'Horas do Colaborador'
+  }
+  if (selectedUserIds.value.length > 1) {
+    return `Horas de ${selectedUserIds.value.length} Colaboradores`
+  }
+  return 'Horas na Semana (Equipe)'
+})
+
 function formatDuration(mins) {
   if (!mins) return '0m'
   const h = Math.floor(mins / 60)
@@ -605,75 +792,215 @@ function openDetailModal(entry) {
   flex-wrap: wrap;
 }
 
-/* Barra de Filtros Dedicada */
-.filter-bar {
+/* Painel de Filtros Integrado */
+.filters-panel {
   padding: 12px 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
   background: #fff;
   border: 1px solid var(--line);
   border-radius: 10px;
-}
-
-.filter-controls-group {
-  display: flex;
-  gap: 18px;
-  align-items: flex-end;
-  flex-wrap: wrap;
-}
-
-.filter-field {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  min-width: 280px;
-  flex: 1;
+  gap: 10px;
 }
 
-.filter-label {
-  font-size: 0.84rem;
-  font-weight: 700;
-  color: var(--muted);
-}
-
-.filter-input-wrapper {
+.filters-header-row {
   display: flex;
-  gap: 8px;
+  justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.filter-select {
-  font-size: 0.9rem;
-  padding: 7px 12px;
-  border-radius: 8px;
-  border: 1px solid #DCD6E5;
-  background-color: #FAF8FD;
-  color: var(--text);
-  font-weight: 600;
-  cursor: pointer;
-  width: 100%;
+.filters-title {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: var(--purple);
 }
 
-.filter-select:focus {
-  border-color: var(--purple2);
-  outline: none;
-  background-color: #fff;
+.filters-reset-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.clear-btn {
-  padding: 6px 10px;
+.filters-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+/* Dropdown Multiseleção (Modelo Idêntico às outras abas) */
+.ms-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.ms-container label {
   font-size: 0.82rem;
+  font-weight: 700;
+  color: #5B5266;
+  margin-bottom: 3px;
   white-space: nowrap;
 }
 
-/* Tags de Filtro Ativo */
+.ms-trigger {
+  width: 100%;
+  height: 32px;
+  border: 1px solid #DDD8E4;
+  background: #fff;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 0.82rem;
+  color: #43394A;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ms-trigger:hover,
+.ms-container.open .ms-trigger {
+  border-color: var(--purple);
+  box-shadow: 0 0 0 1px rgba(109, 86, 160, 0.15);
+}
+
+.ms-trigger .ms-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 85%;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ms-trigger .ms-arrow {
+  font-size: 0.74rem;
+  color: #857D8B;
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.ms-container.open .ms-arrow {
+  transform: rotate(180deg);
+}
+
+.ms-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 250px;
+  width: 100%;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid var(--purple2);
+  border-radius: 7px;
+  box-shadow: 0 8px 20px rgba(62, 38, 102, 0.18);
+  z-index: 1000;
+  display: none;
+  padding: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.ms-container.open .ms-dropdown {
+  display: block;
+}
+
+.ms-search {
+  width: 100%;
+  height: 28px;
+  border: 1px solid #DDD8E4;
+  border-radius: 5px;
+  padding: 0 6px;
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.ms-search:focus {
+  border-color: var(--purple);
+}
+
+.ms-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 4px 5px;
+  border-bottom: 1px solid #F0ECF4;
+  margin-bottom: 5px;
+  font-size: 0.76rem;
+}
+
+.ms-action-btn {
+  color: var(--purple);
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.ms-action-btn:hover {
+  text-decoration: underline;
+}
+
+.ms-list {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.ms-empty {
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-align: center;
+  padding: 8px 4px;
+}
+
+.ms-item {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* Espaço confortável entre checkbox e o texto */
+  padding: 5px 8px;
+  border-radius: 5px;
+  font-size: 0.82rem;
+  color: #43394A;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s ease;
+}
+
+.ms-item:hover {
+  background: var(--purple4);
+}
+
+.ms-item input[type="checkbox"] {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--purple);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.ms-count-badge {
+  background: var(--purple);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border-radius: 8px;
+  padding: 1.5px 5px;
+  margin-left: 4px;
+}
+
+/* Tags de Filtros Ativos */
 .active-filter-tags {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
   flex-wrap: wrap;
-  padding-top: 6px;
+  padding-top: 8px;
   border-top: 1px solid #F0ECF5;
 }
 
@@ -681,9 +1008,9 @@ function openDetailModal(entry) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.82rem;
-  padding: 4px 10px;
-  border-radius: 14px;
+  font-size: 0.8rem;
+  padding: 3px 9px;
+  border-radius: 12px;
 }
 
 .filter-tag.user-tag {
@@ -699,7 +1026,7 @@ function openDetailModal(entry) {
 }
 
 .tag-dot {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
 }
 
 .tag-close {
@@ -874,7 +1201,7 @@ function openDetailModal(entry) {
   color: #E05252;
 }
 
-/* Círculo do Dia de Hoje (exatamente igual ao '15' da imagem) */
+/* Círculo do Dia de Hoje */
 .day-number.today-circle {
   background: #DBEAFE;
   color: #1D4ED8;
