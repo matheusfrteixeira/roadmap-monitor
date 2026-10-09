@@ -1,73 +1,96 @@
 <template>
   <div>
-    <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:12px; flex-wrap:wrap;">
       <div>
         <div class="title">📋 Base Analítica Unificada</div>
-        <div class="sub">Selecione os filtros e gere relatórios detalhados com exportação em formato CSV.</div>
+        <div class="sub">Selecione os parâmetros e gere relatórios com paginação, ordenação e exportação CSV.</div>
       </div>
-      <button v-if="hasGenerated && filteredRows.length > 0" class="btn" @click="exportCSV">
-        ⬇ Exportar CSV ({{ filteredRows.length }} linhas)
-      </button>
+      <div v-if="hasGenerated && filteredRows.length > 0">
+        <Button
+          label="Exportar CSV"
+          icon="pi pi-download"
+          class="p-button-outlined"
+          @click="exportCSV"
+        />
+      </div>
     </div>
 
     <!-- Painel de Filtros para Geração -->
     <div class="card" style="margin-top: 10px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
         <span class="small" style="font-weight:700; color:var(--purple)">Parâmetros da Consulta</span>
-        <button v-if="hasGenerated" class="btn secondary" style="font-size:0.78rem; padding:4px 9px;" @click="resetQuery">
-          Limpar Consulta
-        </button>
+        <Button
+          v-if="hasGenerated"
+          label="Limpar Consulta"
+          icon="pi pi-filter-slash"
+          severity="secondary"
+          text
+          size="small"
+          @click="resetQuery"
+        />
       </div>
 
-      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px;">
         <div class="form-group" style="margin-bottom:0;">
-          <label>Tipo de Registro</label>
-          <select v-model="filterType" class="form-control">
-            <option value="ALL">Todos (Projetos & Atividades)</option>
-            <option value="PROJETO">Apenas Projetos</option>
-            <option value="ATIVIDADE">Apenas Atividades</option>
-          </select>
+          <label style="font-size:0.82rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Tipo de Registro</label>
+          <Select
+            v-model="filterType"
+            :options="typeOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Selecione o tipo"
+            style="width:100%;"
+          />
         </div>
 
         <div class="form-group" style="margin-bottom:0;">
-          <label>Status</label>
-          <select v-model="filterStatus" class="form-control">
-            <option value="">Todos os Status</option>
-            <option value="Concluído">Concluído</option>
-            <option value="Em Andamento">Em Andamento</option>
-            <option value="Não Iniciado">Não Iniciado</option>
-            <option value="Em Espera">Em Espera</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
+          <label style="font-size:0.82rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Status</label>
+          <Select
+            v-model="filterStatus"
+            :options="statusFilterOptions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Todos os Status"
+            style="width:100%;"
+          />
         </div>
 
         <div class="form-group" style="margin-bottom:0;">
-          <label>Buscar por Texto</label>
-          <input v-model="filterSearch" class="form-control" placeholder="Nome, código, solicitante..." />
+          <label style="font-size:0.82rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Buscar por Texto</label>
+          <div class="p-input-icon-left" style="width:100%;">
+            <InputText
+              v-model="filterSearch"
+              placeholder="Nome, código, demandante..."
+              style="width:100%;"
+              @keyup.enter="handleGenerate"
+            />
+          </div>
         </div>
       </div>
 
-      <div style="margin-top: 10px; display:flex; justify-content: flex-end;">
-        <button class="btn" style="height:33px; padding:0 16px; font-size:0.84rem;" @click="handleGenerate">
-          🔍 Gerar Relatório Analítico
-        </button>
+      <div style="margin-top: 14px; display:flex; justify-content: flex-end;">
+        <Button
+          label="Gerar Relatório Analítico"
+          icon="pi pi-search"
+          @click="handleGenerate"
+        />
       </div>
     </div>
 
     <!-- ESTADO INICIAL (A princípio não aparece nada) -->
-    <div v-if="!hasGenerated" class="card" style="margin-top:12px; text-align:center; padding:40px 16px;">
-      <div style="font-size:32px; margin-bottom:8px;">📊</div>
-      <h3 style="color:var(--purple); margin-bottom:4px;">Aguardando geração da consulta</h3>
-      <p style="margin:0; font-size:0.84rem; color:var(--muted); max-width:400px; margin:auto;">
+    <div v-if="!hasGenerated" class="card" style="margin-top:12px; text-align:center; padding:45px 16px;">
+      <div style="font-size:36px; margin-bottom:10px;">📊</div>
+      <h3 style="color:var(--purple); margin-bottom:6px;">Aguardando geração da consulta</h3>
+      <p style="margin:0; font-size:0.86rem; color:var(--muted); max-width:440px; margin:auto; line-height:1.5;">
         Selecione os parâmetros de filtro desejados acima e clique em 
         <strong>"Gerar Relatório Analítico"</strong> para consultar a base de dados.
       </p>
     </div>
 
-    <!-- ESTADO GERADO (Tabela e resultados na tela) -->
-    <div v-else class="section">
+    <!-- ESTADO GERADO (DataTable PrimeVue) -->
+    <div v-else class="section" style="margin-top:12px;">
       <!-- Mini Indicadores do Resultado -->
-      <div class="kpis" style="margin-bottom:10px;">
+      <div class="kpis" style="margin-bottom:12px;">
         <div class="kpi primary">
           <div class="v">{{ filteredRows.length }}</div>
           <div class="l">Linhas Retornadas</div>
@@ -90,57 +113,114 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="tw">
-          <table>
-            <thead>
-              <tr>
-                <th style="width:70px;">Tipo</th>
-                <th style="width:90px;">Código</th>
-                <th>Nome / Demanda</th>
-                <th>Status</th>
-                <th>Início</th>
-                <th>Término</th>
-                <th>Progresso</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in filteredRows" :key="item.uniqueKey">
-                <td>
-                  <span class="badge" :class="item.type === 'PROJETO' ? 'bpurple' : 'bpink'">
-                    {{ item.type }}
-                  </span>
-                </td>
-                <td><strong>{{ item.code }}</strong></td>
-                <td>
-                  <strong :style="{ color: item.type === 'PROJETO' ? 'var(--purple)' : 'inherit' }">
-                    {{ item.name }}
-                  </strong>
-                </td>
-                <td>
-                  <span class="badge" :class="getStatusClass(item.status)">
-                    {{ item.status }}
-                  </span>
-                </td>
-                <td>{{ item.start_date || '—' }}</td>
-                <td>{{ item.end_date || '—' }}</td>
-                <td>
-                  <div style="display:flex; align-items:center; gap:5px;">
-                    <div class="track" style="width:60px;">
-                      <div class="fill" :style="{ width: item.progress + '%' }"></div>
-                    </div>
-                    <span>{{ item.progress }}%</span>
-                  </div>
-                </td>
-              </tr>
-              <tr v-if="filteredRows.length === 0">
-                <td colspan="7" style="text-align:center; padding:30px; color:var(--muted)">
-                  Nenhum registro encontrado para os filtros selecionados.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+      <!-- PrimeVue DataTable -->
+      <div class="card" style="padding: 12px;">
+        <DataTable
+          ref="dt"
+          :value="filteredRows"
+          v-model:filters="tableFilters"
+          dataKey="uniqueKey"
+          paginator
+          :rows="15"
+          :rowsPerPageOptions="[10, 15, 25, 50, 100]"
+          removableSort
+          stripedRows
+          responsiveLayout="scroll"
+          class="p-datatable-sm"
+        >
+          <!-- Cabeçalho da Tabela -->
+          <template #header>
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span style="font-weight:700; color:var(--purple); font-size:0.95rem;">
+                Registros Analíticos ({{ filteredRows.length }})
+              </span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span class="p-input-icon-left">
+                  <InputText
+                    v-model="tableFilters['global'].value"
+                    placeholder="Filtrar tabela..."
+                    style="font-size:0.85rem; height:32px;"
+                  />
+                </span>
+                <Button
+                  icon="pi pi-download"
+                  severity="secondary"
+                  outlined
+                  size="small"
+                  title="Exportar dados da tabela"
+                  @click="exportCSV"
+                />
+              </div>
+            </div>
+          </template>
+
+          <template #empty>
+            <div style="text-align:center; padding:25px; color:var(--muted)">
+              Nenhum registro encontrado para os filtros selecionados.
+            </div>
+          </template>
+
+          <!-- Colunas -->
+          <Column field="type" header="Tipo" sortable style="width: 100px;">
+            <template #body="{ data }">
+              <Tag
+                :value="data.type"
+                :severity="data.type === 'PROJETO' ? 'primary' : 'warning'"
+                style="font-size:0.75rem; font-weight:700;"
+              />
+            </template>
+          </Column>
+
+          <Column field="code" header="Código" sortable style="width: 110px;">
+            <template #body="{ data }">
+              <strong>{{ data.code }}</strong>
+            </template>
+          </Column>
+
+          <Column field="name" header="Nome / Demanda" sortable style="min-width: 250px;">
+            <template #body="{ data }">
+              <span :style="{ fontWeight: 700, color: data.type === 'PROJETO' ? 'var(--purple)' : 'inherit' }">
+                {{ data.name }}
+              </span>
+            </template>
+          </Column>
+
+          <Column field="status" header="Status" sortable style="width: 130px;">
+            <template #body="{ data }">
+              <Tag
+                :value="data.status"
+                :severity="getStatusSeverity(data.status)"
+              />
+            </template>
+          </Column>
+
+          <Column field="start_date" header="Início" sortable style="width: 110px;">
+            <template #body="{ data }">
+              {{ formatDate(data.start_date) }}
+            </template>
+          </Column>
+
+          <Column field="end_date" header="Término" sortable style="width: 110px;">
+            <template #body="{ data }">
+              {{ formatDate(data.end_date) }}
+            </template>
+          </Column>
+
+          <Column field="progress" header="Progresso" sortable style="width: 140px;">
+            <template #body="{ data }">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <ProgressBar
+                  :value="data.progress"
+                  :showValue="false"
+                  style="height: 8px; flex: 1;"
+                />
+                <span style="font-weight:700; font-size:0.82rem; min-width:34px; text-align:right;">
+                  {{ data.progress }}%
+                </span>
+              </div>
+            </template>
+          </Column>
+        </DataTable>
       </div>
     </div>
   </div>
@@ -148,9 +228,19 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { FilterMatchMode } from '@primevue/core/api'
 import { useRoadmapStore } from '@/stores/roadmap'
 
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
+import Tag from 'primevue/tag'
+import ProgressBar from 'primevue/progressbar'
+
 const roadmapStore = useRoadmapStore()
+const dt = ref(null)
 
 const hasGenerated = ref(false)
 const filterType = ref('ALL')
@@ -160,6 +250,25 @@ const filterSearch = ref('')
 const activeFilterType = ref('ALL')
 const activeFilterStatus = ref('')
 const activeFilterSearch = ref('')
+
+const tableFilters = ref({
+  global: { value: null, matchMode: FilterMatchMode.CONTAINS }
+})
+
+const typeOptions = [
+  { label: 'Todos (Projetos & Atividades)', value: 'ALL' },
+  { label: 'Apenas Projetos', value: 'PROJETO' },
+  { label: 'Apenas Atividades', value: 'ATIVIDADE' }
+]
+
+const statusFilterOptions = [
+  { label: 'Todos os Status', value: '' },
+  { label: 'Concluído', value: 'Concluído' },
+  { label: 'Em Andamento', value: 'Em Andamento' },
+  { label: 'Não Iniciado', value: 'Não Iniciado' },
+  { label: 'Em Espera', value: 'Em Espera' },
+  { label: 'Cancelado', value: 'Cancelado' }
+]
 
 function handleGenerate() {
   activeFilterType.value = filterType.value
@@ -173,35 +282,40 @@ function resetQuery() {
   filterType.value = 'ALL'
   filterStatus.value = ''
   filterSearch.value = ''
+  tableFilters.value.global.value = null
 }
 
 const allRows = computed(() => {
   const rows = []
-  roadmapStore.projects.forEach(p => {
-    rows.push({
-      uniqueKey: `p-${p.id}`,
-      type: 'PROJETO',
-      code: `PROJ-${String(p.id).padStart(3, '0')}`,
-      name: p.name,
-      status: p.status,
-      start_date: p.start_date,
-      end_date: p.end_date,
-      progress: p.progress || 0
+  if (roadmapStore.projects) {
+    roadmapStore.projects.forEach(p => {
+      rows.push({
+        uniqueKey: `p-${p.id}`,
+        type: 'PROJETO',
+        code: `PROJ-${String(p.id).padStart(3, '0')}`,
+        name: p.name,
+        status: p.status,
+        start_date: p.start_date,
+        end_date: p.end_date,
+        progress: p.progress || 0
+      })
     })
-  })
+  }
 
-  roadmapStore.activities.forEach(a => {
-    rows.push({
-      uniqueKey: `a-${a.id}`,
-      type: 'ATIVIDADE',
-      code: `ATIV-${String(a.id).padStart(4, '0')}`,
-      name: a.name,
-      status: a.status,
-      start_date: a.start_date,
-      end_date: a.end_date,
-      progress: a.progress || 0
+  if (roadmapStore.activities) {
+    roadmapStore.activities.forEach(a => {
+      rows.push({
+        uniqueKey: `a-${a.id}`,
+        type: 'ATIVIDADE',
+        code: `ATIV-${String(a.id).padStart(4, '0')}`,
+        name: a.name,
+        status: a.status,
+        start_date: a.start_date,
+        end_date: a.end_date,
+        progress: a.progress || 0
+      })
     })
-  })
+  }
   return rows
 })
 
@@ -229,11 +343,24 @@ const countProjects = computed(() => filteredRows.value.filter(r => r.type === '
 const countActivities = computed(() => filteredRows.value.filter(r => r.type === 'ATIVIDADE').length)
 const countCompleted = computed(() => filteredRows.value.filter(r => r.status === 'Concluído' || r.progress >= 100).length)
 
-function getStatusClass(s) {
-  if (s === 'Concluído') return 'bgreen'
-  if (s === 'Em Andamento') return 'bpurple'
-  if (s === 'Em Espera') return 'byellow'
-  return 'bgray'
+function getStatusSeverity(status) {
+  switch (status) {
+    case 'Concluído':
+      return 'success'
+    case 'Em Andamento':
+      return 'info'
+    case 'Em Espera':
+      return 'warn'
+    case 'Cancelado':
+      return 'danger'
+    default:
+      return 'secondary'
+  }
+}
+
+function formatDate(d) {
+  if (!d) return '—'
+  return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')
 }
 
 function exportCSV() {

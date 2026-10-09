@@ -1,5 +1,9 @@
 <template>
   <div class="app">
+    <!-- Componentes Globais de Feedback do PrimeVue -->
+    <Toast position="top-right" />
+    <ConfirmDialog />
+
     <template v-if="authStore.isAuthenticated">
       <Topbar />
       <TimetrackerBar />
@@ -38,4 +42,3 @@ onMounted(async () => {
   }
 })
 </script>
-

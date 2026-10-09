@@ -1,216 +1,280 @@
 <template>
   <div>
-    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:10px;">
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; gap:10px; flex-wrap:wrap;">
       <div>
         <div class="title">Portfólio Completo de Projetos</div>
         <div class="sub">
-          Visão holística de demandas. O início, término e progresso do projeto são sincronizados automaticamente com as atividades.
+          Visão holística de demandas corporativas. Início, término e progresso sincronizados com as atividades.
         </div>
       </div>
-      <button class="btn" @click="openCreateModal">
-        + Novo Projeto
-      </button>
+      <Button
+        label="Novo Projeto"
+        icon="pi pi-plus"
+        @click="openCreateModal"
+      />
     </div>
 
-    <!-- Filtros -->
+    <!-- Filtros Globais Integrados -->
     <GlobalFilters />
 
-    <div class="card" style="margin-top: 10px;">
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-        <span class="small">Exibindo <strong>{{ roadmapStore.filteredProjects.length }}</strong> projetos</span>
-      </div>
+    <div class="card" style="margin-top: 10px; padding: 14px;">
+      <DataTable
+        :value="roadmapStore.filteredProjects"
+        v-model:filters="tableFilters"
+        dataKey="id"
+        paginator
+        :rows="10"
+        :rowsPerPageOptions="[5, 10, 20, 50]"
+        removableSort
+        stripedRows
+        class="p-datatable-sm"
+      >
+        <template #header>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+            <span style="font-weight:700; color:var(--purple); font-size:0.95rem;">
+              Projetos no Portfólio ({{ roadmapStore.filteredProjects.length }})
+            </span>
+            <span class="p-input-icon-left">
+              <InputText
+                v-model="tableFilters['global'].value"
+                placeholder="Filtrar projetos..."
+                style="font-size:0.85rem; height:32px;"
+              />
+            </span>
+          </div>
+        </template>
 
-      <div class="tw">
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 80px;">ID</th>
-              <th>Nome do Projeto</th>
-              <th>Área / Cliente</th>
-              <th>Chamado / Solicit.</th>
-              <th>Solicitante</th>
-              <th>Owner (Líder)</th>
-              <th style="text-align:center;">Entregáveis / Ativ.</th>
-              <th>Status</th>
-              <th>Período Automático</th>
-              <th>Progresso</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="proj in roadmapStore.filteredProjects"
-              :key="proj.id"
-              class="clickable-row"
-              @click="$router.push(`/projeto/${proj.id}`)"
-            >
-              <td><strong>PROJ-{{ String(proj.id).padStart(3, '0') }}</strong></td>
-              <td>
-                <strong style="color: var(--purple)">{{ proj.name }}</strong>
-                <div v-if="proj.comments" class="small" style="color:var(--muted); max-width:220px; overflow:hidden; text-overflow:ellipsis;">
-                  💬 {{ proj.comments }}
-                </div>
-              </td>
-              <td>
-                <span class="badge bpurple">
-                  🏢 {{ proj.area_name || 'Geral' }}
-                </span>
-              </td>
-              <td>
-                <span v-if="proj.ticket_number" class="badge bgray">
-                  🎫 {{ proj.ticket_number }}
-                </span>
-                <span v-else class="small" style="color:var(--muted)">—</span>
-              </td>
-              <td>{{ proj.requester || '—' }}</td>
-              <td>
-                <span v-if="proj.owner_name">👤 {{ proj.owner_name }}</span>
-                <span v-else class="small" style="color:var(--muted)">—</span>
-              </td>
-              <td style="text-align:center;">
-                <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-                  <div style="display:inline-flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:center;">
-                    <span v-if="proj.total_deliverables > 0" class="badge bpurple">
-                      {{ proj.total_deliverables }} ent.
-                    </span>
-                    <span class="badge" :class="proj.total_activities > 0 ? 'bpink' : 'bgray'">
-                      {{ proj.completed_activities || 0 }}/{{ proj.total_activities || 0 }} ativ.
-                    </span>
-                  </div>
-                  <!-- Indicador de Atividades Atrasadas -->
-                  <span
-                    v-if="getProjectDelayedActivities(proj) > 0"
-                    class="badge bred"
-                    style="font-weight:800;"
-                    title="Quantidade de atividades atrasadas neste projeto"
-                  >
-                    ⚠️ {{ getProjectDelayedActivities(proj) }} ativ. atrasada(s)
-                  </span>
-                </div>
-              </td>
-              <td>
-                <span class="badge" :class="getStatusClass(proj.status)">
-                  {{ proj.status }}
-                </span>
-              </td>
-              <td>
-                <span :style="{ color: isOverdue(proj) ? 'var(--red)' : 'inherit', fontWeight: isOverdue(proj) ? 'bold' : 'normal' }">
-                  {{ formatDate(proj.start_date) }} → {{ formatDate(proj.end_date) }}
-                  <span v-if="isOverdue(proj)" class="badge bred" style="margin-left:4px;">Atrasado</span>
-                </span>
-              </td>
-              <td style="min-width: 110px;">
-                <div style="display:flex; align-items:center; gap:6px;">
-                  <div class="track" style="flex:1;">
-                    <div class="fill" :style="{ width: (proj.progress || 0) + '%' }"></div>
-                  </div>
-                  <span style="font-weight:700;">{{ (proj.progress || 0) }}%</span>
-                </div>
-              </td>
-              <td>
-                <button class="btn secondary" style="padding:4px 9px;">
-                  Abrir →
-                </button>
-              </td>
-            </tr>
-            <tr v-if="roadmapStore.filteredProjects.length === 0">
-              <td colspan="11" style="text-align:center; padding: 25px; color: var(--muted)">
-                Nenhum projeto encontrado com os filtros atuais.
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+        <template #empty>
+          <div style="text-align:center; padding:30px; color:var(--muted)">
+            Nenhum projeto encontrado para os filtros selecionados.
+          </div>
+        </template>
+
+        <!-- ID -->
+        <Column field="id" header="ID" sortable style="width: 90px;">
+          <template #body="{ data }">
+            <strong>PROJ-{{ String(data.id).padStart(3, '0') }}</strong>
+          </template>
+        </Column>
+
+        <!-- Nome do Projeto -->
+        <Column field="name" header="Nome do Projeto" sortable style="min-width: 220px;">
+          <template #body="{ data }">
+            <strong style="color:var(--purple); font-size:0.95rem; cursor:pointer;" @click="$router.push(`/projeto/${data.id}`)">
+              {{ data.name }}
+            </strong>
+            <div v-if="data.comments" class="small" style="color:var(--muted); max-width:240px; overflow:hidden; text-overflow:ellipsis; margin-top:2px;">
+              💬 {{ data.comments }}
+            </div>
+          </template>
+        </Column>
+
+        <!-- Área / Cliente -->
+        <Column field="area_name" header="Área / Cliente" sortable style="width: 140px;">
+          <template #body="{ data }">
+            <Tag
+              :value="'🏢 ' + (data.area_name || 'Geral')"
+              severity="secondary"
+              style="font-size:0.75rem;"
+            />
+          </template>
+        </Column>
+
+        <!-- Chamado / Ticket -->
+        <Column field="ticket_number" header="Chamado" sortable style="width: 120px;">
+          <template #body="{ data }">
+            <Tag
+              v-if="data.ticket_number"
+              :value="data.ticket_number"
+              severity="info"
+              style="font-size:0.75rem;"
+            />
+            <span v-else class="small" style="color:var(--muted)">—</span>
+          </template>
+        </Column>
+
+        <!-- Solicitante -->
+        <Column field="requester" header="Solicitante" sortable style="width: 140px;">
+          <template #body="{ data }">
+            <span style="font-size:0.85rem;">{{ data.requester || '—' }}</span>
+          </template>
+        </Column>
+
+        <!-- Owner -->
+        <Column field="owner_name" header="Owner" sortable style="width: 150px;">
+          <template #body="{ data }">
+            <span style="font-size:0.85rem; font-weight:600;">👤 {{ data.owner_name || '—' }}</span>
+          </template>
+        </Column>
+
+        <!-- Entregáveis / Atividades -->
+        <Column header="Entregáveis / Ativ." style="width: 130px; text-align:center;">
+          <template #body="{ data }">
+            <div style="font-size:0.82rem;">
+              <strong>{{ data.deliverables?.length || 0 }}</strong> ent. /
+              <strong style="color:var(--pink)">{{ countActivities(data) }}</strong> ativ.
+            </div>
+          </template>
+        </Column>
+
+        <!-- Status -->
+        <Column field="status" header="Status" sortable style="width: 130px;">
+          <template #body="{ data }">
+            <Tag
+              :value="data.status"
+              :severity="getStatusSeverity(data.status)"
+              style="font-weight:700;"
+            />
+          </template>
+        </Column>
+
+        <!-- Período -->
+        <Column header="Período" style="width: 160px;">
+          <template #body="{ data }">
+            <div style="font-size:0.78rem; line-height:1.3;">
+              <div>Início: <strong>{{ formatDate(data.start_date) }}</strong></div>
+              <div>Fim: <strong>{{ formatDate(data.end_date) }}</strong></div>
+            </div>
+          </template>
+        </Column>
+
+        <!-- Progresso -->
+        <Column field="progress" header="Progresso" sortable style="width: 130px;">
+          <template #body="{ data }">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <ProgressBar
+                :value="data.progress || 0"
+                :showValue="false"
+                style="height: 8px; flex: 1;"
+              />
+              <span style="font-weight:700; font-size:0.8rem; min-width:32px; text-align:right;">
+                {{ data.progress || 0 }}%
+              </span>
+            </div>
+          </template>
+        </Column>
+
+        <!-- Ações -->
+        <Column header="Ação" style="width: 90px; text-align:center;">
+          <template #body="{ data }">
+            <Button
+              icon="pi pi-arrow-right"
+              severity="secondary"
+              size="small"
+              text
+              title="Abrir Detalhes do Projeto"
+              @click="$router.push(`/projeto/${data.id}`)"
+            />
+          </template>
+        </Column>
+      </DataTable>
     </div>
 
-    <!-- Modal Novo Projeto -->
-    <div v-if="showNewModal" class="modal-backdrop" @click.self="showNewModal = false">
-      <div class="modal-content" style="max-width:560px;">
-        <div class="modal-header">
-          <h2>Cadastrar Novo Projeto de Roadmap</h2>
-          <button class="modal-close" @click="showNewModal = false">×</button>
+    <!-- DIALOG NOVO PROJETO (PrimeVue) -->
+    <Dialog
+      v-model:visible="showNewModal"
+      modal
+      header="Cadastrar Novo Projeto de Roadmap"
+      :style="{ width: '560px' }"
+    >
+      <form @submit.prevent="handleCreateProject" style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Nome do Projeto *</label>
+          <InputText v-model="newProject.name" required placeholder="ex: Implantação CRM" style="width:100%;" />
         </div>
-        <form @submit.prevent="handleCreateProject">
-          <div class="form-group">
-            <label>Nome do Projeto *</label>
-            <input v-model="newProject.name" required class="form-control" placeholder="ex: Implantação CRM" />
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Área / Cliente Corporativo *</label>
+            <Select
+              v-model="newProject.area_id"
+              :options="areasList"
+              optionLabel="name"
+              optionValue="id"
+              placeholder="Selecione a área"
+              style="width:100%;"
+            />
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <div class="form-group">
-              <label>Área / Cliente Corporativo *</label>
-              <select v-model="newProject.area_id" class="form-control">
-                <option v-for="area in areasList" :key="area.id" :value="area.id">
-                  {{ area.name }}
-                </option>
-              </select>
-            </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Número do Chamado / Solicitação</label>
+            <InputText v-model="newProject.ticket_number" placeholder="ex: TCK-99482" style="width:100%;" />
+          </div>
+        </div>
 
-            <div class="form-group">
-              <label>Número do Chamado / Solicitação (Se houver)</label>
-              <input v-model="newProject.ticket_number" class="form-control" placeholder="ex: TCK-99482 ou JIRA-120" />
-            </div>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Solicitante</label>
+            <InputText v-model="newProject.requester" placeholder="ex: Maria Silva (Diretoria RH)" style="width:100%;" />
           </div>
 
-          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-            <div class="form-group">
-              <label>Solicitante (Preenchimento manual)</label>
-              <input v-model="newProject.requester" class="form-control" placeholder="ex: Maria Silva (Diretoria RH)" />
-            </div>
-
-            <div class="form-group">
-              <label>Owner (Líder que conduzirá o projeto)</label>
-              <select v-model="newProject.owner_id" class="form-control">
-                <option v-for="u in usersList" :key="u.id" :value="u.id">
-                  {{ u.name }}
-                </option>
-              </select>
-            </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Owner (Líder do Projeto)</label>
+            <Select
+              v-model="newProject.owner_id"
+              :options="usersList"
+              optionLabel="name"
+              optionValue="id"
+              placeholder="Selecione o líder"
+              style="width:100%;"
+            />
           </div>
+        </div>
 
-          <div class="form-group">
-            <label>Prioridade</label>
-            <select v-model="newProject.priority" class="form-control">
-              <option value="Crítica">Crítica</option>
-              <option value="Alta">Alta</option>
-              <option value="Normal">Normal</option>
-              <option value="Média">Média</option>
-              <option value="Baixa">Baixa</option>
-            </select>
-          </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Prioridade</label>
+          <Select
+            v-model="newProject.priority"
+            :options="priorityOptions"
+            optionLabel="label"
+            optionValue="value"
+            style="width:100%;"
+          />
+        </div>
 
-          <div class="form-group">
-            <label>Comentários / Observações do Projeto</label>
-            <textarea
-              v-model="newProject.comments"
-              class="form-control"
-              placeholder="Descreva o objetivo macro, escopo ou comentários relevantes deste projeto..."
-            ></textarea>
-          </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label style="font-size:0.85rem; font-weight:700; color:var(--muted); display:block; margin-bottom:4px;">Comentários / Observações</label>
+          <Textarea
+            v-model="newProject.comments"
+            rows="3"
+            placeholder="Descreva o objetivo macro, escopo ou comentários relevantes..."
+            style="width:100%; resize:vertical;"
+          />
+        </div>
 
-          <div class="callout" style="margin-top:8px;">
-            ℹ️ <strong>Datas e Progresso:</strong> Serão calculados de forma 100% automática a partir das atividades inseridas neste projeto.
-          </div>
+        <div style="background:var(--purple4); border:1px solid var(--line); border-radius:8px; padding:10px; font-size:0.84rem; color:var(--purple);">
+          ℹ️ <strong>Datas e Progresso:</strong> Serão calculados de forma 100% automática a partir das atividades cadastradas neste projeto.
+        </div>
 
-          <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
-            <button type="button" class="btn secondary" @click="showNewModal = false">Cancelar</button>
-            <button type="submit" class="btn" :disabled="saving">
-              {{ saving ? 'Salvando...' : 'Criar Projeto' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:10px;">
+          <Button label="Cancelar" severity="secondary" text @click="showNewModal = false" />
+          <Button type="submit" label="Criar Projeto" icon="pi pi-check" :loading="saving" />
+        </div>
+      </form>
+    </Dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { FilterMatchMode } from '@primevue/core/api'
+import { useToast } from 'primevue/usetoast'
 import { useRoadmapStore } from '@/stores/roadmap'
 import { useAuthStore } from '@/stores/auth'
 import GlobalFilters from '@/components/GlobalFilters.vue'
 import api from '@/services/api'
 
+import DataTable from 'primevue/datatable'
+import Column from 'primevue/column'
+import Button from 'primevue/button'
+import InputText from 'primevue/inputtext'
+import Select from 'primevue/select'
+import Tag from 'primevue/tag'
+import ProgressBar from 'primevue/progressbar'
+import Dialog from 'primevue/dialog'
+import Textarea from 'primevue/textarea'
+
+const toast = useToast()
 const roadmapStore = useRoadmapStore()
 const authStore = useAuthStore()
 
@@ -219,22 +283,29 @@ const saving = ref(false)
 const areasList = ref([])
 const usersList = ref([])
 
+const tableFilters = ref({
+  global: { value: null, matchMode: FilterMatchMode.CONTAINS }
+})
+
+const priorityOptions = [
+  { label: 'Crítica', value: 'Crítica' },
+  { label: 'Alta', value: 'Alta' },
+  { label: 'Normal', value: 'Normal' },
+  { label: 'Média', value: 'Média' },
+  { label: 'Baixa', value: 'Baixa' }
+]
+
 const newProject = ref({
   name: '',
-  priority: 'Normal',
-  status: 'Não Iniciado',
-  area_id: 1,
-  owner_id: 1,
+  area_id: null,
+  owner_id: null,
   ticket_number: '',
   requester: '',
+  priority: 'Alta',
   comments: ''
 })
 
 onMounted(async () => {
-  await loadLookups()
-})
-
-async function loadLookups() {
   try {
     const [areasRes, usersRes] = await Promise.all([
       api.get('/areas/'),
@@ -243,60 +314,75 @@ async function loadLookups() {
     areasList.value = areasRes.data
     usersList.value = usersRes.data
     if (areasList.value.length > 0) newProject.value.area_id = areasList.value[0].id
-    if (usersList.value.length > 0) newProject.value.owner_id = usersList.value[0].id
+    if (authStore.user?.id) newProject.value.owner_id = authStore.user.id
   } catch (err) {
-    console.error('Erro ao carregar lookups:', err)
+    console.error('Erro ao carregar selects do projeto:', err)
+  }
+})
+
+function openCreateModal() {
+  newProject.value = {
+    name: '',
+    area_id: areasList.value[0]?.id || null,
+    owner_id: authStore.user?.id || usersList.value[0]?.id || null,
+    ticket_number: '',
+    requester: '',
+    priority: 'Alta',
+    comments: ''
+  }
+  showNewModal.value = true
+}
+
+async function handleCreateProject() {
+  if (!newProject.value.name.trim()) {
+    toast.add({ severity: 'warn', summary: 'Atenção', detail: 'Informe o nome do projeto.', life: 3000 })
+    return
+  }
+  saving.value = true
+  try {
+    const res = await api.post('/projects/', newProject.value)
+    showNewModal.value = false
+    await roadmapStore.fetchAll()
+    toast.add({
+      severity: 'success',
+      summary: 'Projeto Criado',
+      detail: `Projeto "${res.data.name}" criado com sucesso!`,
+      life: 3500
+    })
+  } catch (err) {
+    toast.add({
+      severity: 'error',
+      summary: 'Erro',
+      detail: err.response?.data?.detail || 'Erro ao cadastrar projeto.',
+      life: 4000
+    })
+  } finally {
+    saving.value = false
   }
 }
 
-function openCreateModal() {
-  newProject.value.name = ''
-  newProject.value.ticket_number = ''
-  newProject.value.requester = ''
-  newProject.value.comments = ''
-  showNewModal.value = true
+function countActivities(proj) {
+  if (!proj.deliverables) return 0
+  return proj.deliverables.reduce((sum, d) => sum + (d.activities?.length || 0), 0)
+}
+
+function getStatusSeverity(status) {
+  switch (status) {
+    case 'Concluído':
+      return 'success'
+    case 'Em Andamento':
+      return 'info'
+    case 'Em Espera':
+      return 'warn'
+    case 'Cancelado':
+      return 'danger'
+    default:
+      return 'secondary'
+  }
 }
 
 function formatDate(d) {
   if (!d) return '—'
   return new Date(d + 'T00:00:00').toLocaleDateString('pt-BR')
-}
-
-function isOverdue(proj) {
-  if (!proj.end_date || proj.status === 'Concluído') return false
-  const today = new Date()
-  today.setHours(0,0,0,0)
-  return new Date(proj.end_date + 'T00:00:00') < today
-}
-
-function getProjectDelayedActivities(proj) {
-  if (proj.delayed_activities !== undefined && proj.delayed_activities !== null) {
-    return proj.delayed_activities
-  }
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  return roadmapStore.activities.filter(a => {
-    return a.project_id === proj.id && a.status !== 'Concluído' && (a.progress === null || a.progress < 100) && a.end_date && new Date(a.end_date + 'T00:00:00') < today
-  }).length
-}
-
-function getStatusClass(s) {
-  if (s === 'Concluído') return 'bgreen'
-  if (s === 'Em Andamento') return 'bpurple'
-  if (s === 'Em Espera') return 'byellow'
-  return 'bgray'
-}
-
-async function handleCreateProject() {
-  saving.value = true
-  try {
-    await roadmapStore.createProject(newProject.value)
-    showNewModal.value = false
-    await roadmapStore.fetchAll()
-  } catch (err) {
-    alert(err.response?.data?.detail || 'Erro ao criar projeto.')
-  } finally {
-    saving.value = false
-  }
 }
 </script>
