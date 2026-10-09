@@ -119,11 +119,14 @@ class TimeEntryService:
         
         result = []
         for e in entries:
+            date_iso = e.date_recorded.isoformat() if e.date_recorded else None
+            if date_iso and not date_iso.endswith('Z') and '+' not in date_iso:
+                date_iso += 'Z'
             result.append({
                 "id": e.id,
                 "time_spent_minutes": e.time_spent_minutes,
                 "description": e.description,
-                "date_recorded": e.date_recorded.isoformat() if e.date_recorded else None,
+                "date_recorded": date_iso,
                 "user_id": e.user_id,
                 "user_name": e.user.name if e.user else "Usuário Desconhecido",
                 "activity_id": e.activity_id,
