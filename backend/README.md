@@ -762,3 +762,4 @@ Na raiz da pasta `backend/` constam três scripts de suporte ao desenvolvimento:
    ```
 3. **`python test_all_endpoints.py`**:
    Bateria completa de testes automatizados via `TestClient`, autenticando como admin e validando chamadas HTTP ponta a ponta em todos os 7 módulos da API.
+
